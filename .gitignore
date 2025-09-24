@@ -1,0 +1,9 @@
+*.log
+*.out
+*.err
+
+.idea
+
+config/config.yaml
+go.mod
+go.tidy
