@@ -6,4 +6,4 @@
 
 config/config.yaml
 go.mod
-go.tidy
+go.sum
