@@ -12,10 +12,14 @@ import (
 	"github_user_activity/internal/gh"
 )
 
-func newActivityCmd() *cobra.Command {
-	var tail int
-	var outType string
+var (
+	tail         int
+	outType      string
+	showCommits  bool
+	commitsLimit int
+)
 
+func newActivityCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "activity <username>",
 		Short: "Показать последние публичные действия пользователя GitHub",
@@ -28,25 +32,43 @@ func newActivityCmd() *cobra.Command {
 			if tail <= 0 {
 				tail = 10
 			}
+
 			switch strings.ToLower(outType) {
 			case "", "txt":
 				outType = "txt"
 			case "json":
 				outType = "json"
 			default:
-				return fmt.Errorf("неизвестный тип вывода: %q (доступно: txt, json)", outType)
+				return fmt.Errorf("неизвестный тип вывода: %q (txt|json)", outType)
 			}
+			if commitsLimit <= 0 {
+				commitsLimit = 5
+			}
+
 			client := gh.Client{}
 			events, err := client.UserEvents(cmd.Context(), username, tail)
 			if err != nil {
 				return err
 			}
-			return renderEvents(os.Stdout, events, outType)
+
+			if outType == "json" {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(events)
+			}
+
+			for _, e := range events {
+				fmt.Println(gh.HumanDetailed(e, showCommits, commitsLimit))
+			}
+			return nil
 		},
 	}
 
 	cmd.Flags().IntVarP(&tail, "tail", "t", 10, "сколько событий показать (с пагинацией)")
-	cmd.Flags().StringVarP(&outType, "type", "T", "", "тип вывода (json, text)")
+	cmd.Flags().StringVarP(&outType, "type", "T", "txt", "тип вывода (txt, json)")
+
+	cmd.Flags().BoolVarP(&showCommits, "commits", "c", false, "показывать список коммитов для PushEvent")
+	cmd.Flags().IntVar(&commitsLimit, "commits-limit", 5, "максимум коммитов на PushEvent")
 	return cmd
 }
 

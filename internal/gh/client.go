@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -75,7 +76,6 @@ func (c Client) UserEvents(ctx context.Context, username string, limit int) ([]E
 func Human(e Event) string {
 	ts := formatTime(e.CreatedAt)
 	repo := e.Repo.Name
-
 	switch e.Type {
 	case "PushEvent":
 		var p struct {
@@ -86,14 +86,12 @@ func Human(e Event) string {
 			return fmt.Sprintf("[%s] - Pushed 1 commit to %s", ts, repo)
 		}
 		return fmt.Sprintf("[%s] - Pushed %d commits to %s", ts, p.Size, repo)
-
 	case "IssuesEvent":
 		var p struct {
 			Action string `json:"action"`
 		}
 		_ = json.Unmarshal(e.Payload, &p)
 		return fmt.Sprintf("[%s] - %s a new issue in %s", ts, title(p.Action), repo)
-
 	case "PullRequestEvent":
 		var p struct {
 			Action string `json:"action"`
@@ -101,13 +99,59 @@ func Human(e Event) string {
 		}
 		_ = json.Unmarshal(e.Payload, &p)
 		return fmt.Sprintf("[%s] - %s pull request #%d in %s", ts, title(p.Action), p.Number, repo)
-
 	case "WatchEvent":
 		return fmt.Sprintf("[%s] - Starred %s", ts, repo)
-
 	default:
 		return fmt.Sprintf("[%s] - %s in %s", ts, e.Type, repo)
 	}
+
+}
+
+// HumanDetailed — человекочитаемый вывод, опционально с коммитами для PushEvent
+func HumanDetailed(e Event, withCommits bool, maxCommits int) string {
+	base := Human(e)
+	if !withCommits || e.Type != "PushEvent" {
+		return base
+	}
+	// распарсим коммиты из payload
+	var p struct {
+		Commits []struct {
+			Sha     string `json:"sha"`
+			Message string `json:"message"`
+			// Url string `json:"url"` // можно дергать для полного сообщения, но не обязательно
+		} `json:"commits"`
+	}
+	_ = json.Unmarshal(e.Payload, &p)
+	if len(p.Commits) == 0 {
+		return base
+	}
+
+	// ограничим и красиво выведем
+	if maxCommits > 0 && len(p.Commits) > maxCommits {
+		p.Commits = p.Commits[:maxCommits]
+	}
+	var b strings.Builder
+	b.WriteString(base)
+	for _, c := range p.Commits {
+		sha := c.Sha
+		if len(sha) > 7 {
+			sha = sha[:7]
+		}
+		// первая строка сообщения
+		msg := c.Message
+		if i := strings.IndexByte(msg, '\n'); i >= 0 {
+			msg = msg[:i]
+		}
+		msg = strings.TrimSpace(msg)
+		if msg == "" {
+			msg = "(no message)"
+		}
+		b.WriteString("\n  • ")
+		b.WriteString(sha)
+		b.WriteString(" ")
+		b.WriteString(msg)
+	}
+	return b.String()
 }
 
 func formatTime(t time.Time) string {
