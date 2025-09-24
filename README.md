@@ -14,7 +14,7 @@
 
 ### Использование
 ```bash
-git-cli activity [flags] <username>
+go run . git-cli activity [flags] <username>
 ```
 
 ## Пример
