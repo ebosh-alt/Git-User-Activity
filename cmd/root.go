@@ -18,7 +18,7 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	root.CompletionOptions.HiddenDefaultCmd = true
+	//root.CompletionOptions.HiddenDefaultCmd = true
 	root.AddCommand(newGitCLICmd())
 
 	return root
